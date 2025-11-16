@@ -1,1 +1,647 @@
-Hello
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Погода</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            overflow-x: hidden;
+            transition: background 1s ease;
+        }
+
+        .app {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: white;
+            position: relative;
+        }
+
+        /* Поиск */
+        .search-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 80px;
+        }
+
+        .search-overlay.active {
+            display: flex;
+        }
+
+        .search-box {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-input-wrapper {
+            padding: 16px;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .search-results {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .search-result {
+            padding: 16px;
+            border-bottom: 1px solid #e5e5e5;
+            cursor: pointer;
+            color: #333;
+            background: white;
+            border: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .search-result:hover {
+            background: #f5f5f5;
+        }
+
+        .result-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .result-country {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Верхняя панель */
+        .header {
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn svg {
+            width: 24px;
+            height: 24px;
+            stroke: white;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        /* Основной контент */
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 24px;
+        }
+
+        .location-name {
+            font-size: 36px;
+            font-weight: 300;
+            margin-bottom: 8px;
+        }
+
+        .temperature {
+            font-size: 96px;
+            font-weight: 100;
+            margin: 32px 0;
+        }
+
+        .description {
+            font-size: 24px;
+            margin-bottom: 32px;
+        }
+
+        .weather-icon {
+            width: 80px;
+            height: 80px;
+            margin: 20px 0;
+        }
+
+        .weather-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke: white;
+            fill: none;
+            stroke-width: 1.5;
+        }
+
+        .minmax {
+            font-size: 20px;
+            margin-top: 48px;
+        }
+
+        /* Детали */
+        .details {
+            margin-top: 48px;
+            width: 100%;
+            max-width: 500px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 24px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .detail-icon {
+            width: 32px;
+            height: 32px;
+        }
+
+        .detail-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke: white;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .detail-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .detail-value {
+            font-size: 20px;
+        }
+
+        /* Индикаторы */
+        .indicators {
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .indicator {
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            width: 8px;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .indicator.active {
+            width: 32px;
+            background: white;
+        }
+
+        /* Список локаций */
+        .locations-list {
+            padding: 24px;
+        }
+
+        .locations-container {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            overflow: hidden;
+        }
+
+        .location-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+        }
+
+        .location-item:last-child {
+            border-bottom: none;
+        }
+
+        .location-info {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .location-temp {
+            font-size: 24px;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            padding: 8px;
+            margin-left: 16px;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+        }
+
+        .remove-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .remove-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: white;
+            stroke-width: 2;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 24px;
+            padding: 40px;
+        }
+
+        .add-city-btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: none;
+            border-radius: 16px;
+            padding: 16px 32px;
+            font-size: 20px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .add-city-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .close-btn svg {
+            width: 24px;
+            height: 24px;
+            stroke: #666;
+            stroke-width: 2;
+        }
+
+        .search-icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        .search-icon svg {
+            stroke: #999;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="app" id="app">
+        <!-- Поиск -->
+        <div class="search-overlay" id="searchOverlay">
+            <div class="search-box">
+                <div class="search-input-wrapper">
+                    <div class="search-icon">
+                        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    </div>
+                    <input 
+                        type="text" 
+                        class="search-input" 
+                        id="searchInput"
+                        placeholder="Поиск города..."
+                    >
+                    <button class="close-btn" onclick="closeSearch()">
+                        <svg viewBox="0 0 24 24" fill="none"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="search-results" id="searchResults"></div>
+            </div>
+        </div>
+
+        <!-- Главный экран -->
+        <div class="header">
+            <button class="btn" onclick="openSearch()">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            </button>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+        </div>
+
+        <div class="content" id="content">
+            <div class="loading">Загрузка...</div>
+        </div>
+
+        <div class="indicators" id="indicators"></div>
+
+        <div class="locations-list">
+            <div class="locations-container" id="locationsList"></div>
+        </div>
+    </div>
+
+    <script>
+        let locations = [];
+        let currentIndex = 0;
+        let weatherData = {};
+        let searchTimeout = null;
+
+        // Инициализация
+        async function init() {
+            const saved = localStorage.getItem('weatherLocations');
+            if (saved) {
+                locations = JSON.parse(saved);
+            } else {
+                locations = [{ name: 'Riga', lat: 56.9496, lon: 24.1052 }];
+            }
+            await fetchAllWeather();
+            render();
+        }
+
+        // Загрузка погоды
+        async function fetchAllWeather() {
+            weatherData = {};
+            for (const loc of locations) {
+                try {
+                    const response = await fetch(
+                        `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`
+                    );
+                    const data = await response.json();
+                    weatherData[loc.name] = data;
+                } catch (error) {
+                    console.error('Error fetching weather:', error);
+                }
+            }
+        }
+
+        // Определение фона
+        function getBackground(weatherCode, isDay) {
+            if (weatherCode === 0 || weatherCode === 1) {
+                return isDay 
+                    ? 'linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%)'
+                    : 'linear-gradient(to bottom, #0B1026 0%, #2E3A59 100%)';
+            }
+            if (weatherCode === 2 || weatherCode === 3) {
+                return isDay
+                    ? 'linear-gradient(to bottom, #697C9B 0%, #B8C5D6 100%)'
+                    : 'linear-gradient(to bottom, #1a1a2e 0%, #3a3a52 100%)';
+            }
+            if (weatherCode >= 51 && weatherCode <= 67) {
+                return 'linear-gradient(to bottom, #4A5568 0%, #718096 100%)';
+            }
+            if (weatherCode >= 71 && weatherCode <= 77) {
+                return 'linear-gradient(to bottom, #E2E8F0 0%, #CBD5E0 100%)';
+            }
+            if (weatherCode >= 80 && weatherCode <= 99) {
+                return 'linear-gradient(to bottom, #2D3748 0%, #4A5568 100%)';
+            }
+            return isDay 
+                ? 'linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%)'
+                : 'linear-gradient(to bottom, #0B1026 0%, #2E3A59 100%)';
+        }
+
+        // Иконка погоды
+        function getWeatherIcon(weatherCode, isDay) {
+            if (weatherCode === 0 || weatherCode === 1) {
+                return isDay 
+                    ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>'
+                    : '<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+            }
+            if (weatherCode === 2 || weatherCode === 3) {
+                return '<svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>';
+            }
+            if (weatherCode >= 51 && weatherCode <= 67) {
+                return '<svg viewBox="0 0 24 24"><path d="M16 13v8m-8-8v8m4-6v8M9 7H6a4 4 0 0 0-4 4v1a4 4 0 0 0 4 4h3M15 7h3a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4h-3"/></svg>';
+            }
+            if (weatherCode >= 71 && weatherCode <= 77) {
+                return '<svg viewBox="0 0 24 24"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25M8 16h.01M8 20h.01M12 18h.01M12 22h.01M16 16h.01M16 20h.01"/></svg>';
+            }
+            return '<svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>';
+        }
+
+        // Описание погоды
+        function getWeatherDescription(weatherCode) {
+            const descriptions = {
+                0: 'Ясно', 1: 'Преимущественно ясно', 2: 'Переменная облачность', 
+                3: 'Облачно', 45: 'Туман', 48: 'Изморозь', 51: 'Легкая морось',
+                53: 'Морось', 55: 'Сильная морось', 61: 'Небольшой дождь',
+                63: 'Дождь', 65: 'Сильный дождь', 71: 'Небольшой снег',
+                73: 'Снег', 75: 'Сильный снег', 80: 'Ливень', 95: 'Гроза',
+                96: 'Гроза с градом'
+            };
+            return descriptions[weatherCode] || 'Неизвестно';
+        }
+
+        // Рендер
+        function render() {
+            const currentLocation = locations[currentIndex];
+            const currentWeather = currentLocation ? weatherData[currentLocation.name] : null;
+            const hour = new Date().getHours();
+            const isDay = hour >= 6 && hour < 20;
+            const weatherCode = currentWeather?.current?.weather_code || 0;
+
+            // Фон
+            document.getElementById('app').style.background = getBackground(weatherCode, isDay);
+
+            // Контент
+            const content = document.getElementById('content');
+            if (!currentWeather) {
+                content.innerHTML = '<button class="add-city-btn" onclick="openSearch()">Добавить город</button>';
+            } else {
+                content.innerHTML = `
+                    <h1 class="location-name">${currentLocation.name}</h1>
+                    <div class="temperature">${Math.round(currentWeather.current.temperature_2m)}°</div>
+                    <div class="description">${getWeatherDescription(weatherCode)}</div>
+                    <div class="weather-icon">${getWeatherIcon(weatherCode, isDay)}</div>
+                    <div class="minmax">
+                        Макс.: ${Math.round(currentWeather.daily.temperature_2m_max[0])}° 
+                        Мин.: ${Math.round(currentWeather.daily.temperature_2m_min[0])}°
+                    </div>
+                    <div class="details">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <div class="detail-icon">
+                                    <svg viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+                                </div>
+                                <div>
+                                    <div class="detail-label">Ветер</div>
+                                    <div class="detail-value">${Math.round(currentWeather.current.wind_speed_10m)} км/ч</div>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-icon">
+                                    <svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                                </div>
+                                <div>
+                                    <div class="detail-label">Влажность</div>
+                                    <div class="detail-value">${currentWeather.current.relative_humidity_2m}%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Индикаторы
+            const indicators = document.getElementById('indicators');
+            if (locations.length > 1) {
+                indicators.innerHTML = locations.map((_, i) => 
+                    `<button class="indicator ${i === currentIndex ? 'active' : ''}" onclick="switchLocation(${i})"></button>`
+                ).join('');
+            } else {
+                indicators.innerHTML = '';
+            }
+
+            // Список локаций
+            const list = document.getElementById('locationsList');
+            list.innerHTML = locations.map((loc, i) => `
+                <div class="location-item">
+                    <button class="location-info" onclick="switchLocation(${i})">
+                        <span>${loc.name}</span>
+                        ${weatherData[loc.name] ? `<span class="location-temp">${Math.round(weatherData[loc.name].current.temperature_2m)}°</span>` : ''}
+                    </button>
+                    ${locations.length > 1 ? `<button class="remove-btn" onclick="removeLocation(${i})"><svg viewBox="0 0 24 24" fill="none"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Переключение локации
+        function switchLocation(index) {
+            currentIndex = index;
+            render();
+        }
+
+        // Удаление локации
+        async function removeLocation(index) {
+            locations.splice(index, 1);
+            if (currentIndex >= locations.length) {
+                currentIndex = Math.max(0, locations.length - 1);
+            }
+            localStorage.setItem('weatherLocations', JSON.stringify(locations));
+            await fetchAllWeather();
+            render();
+        }
+
+        // Поиск
+        function openSearch() {
+            document.getElementById('searchOverlay').classList.add('active');
+            document.getElementById('searchInput').focus();
+        }
+
+        function closeSearch() {
+            document.getElementById('searchOverlay').classList.remove('active');
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResults').innerHTML = '';
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value;
+            if (searchTimeout) clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(
+                        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=ru&format=json`
+                    );
+                    const data = await response.json();
+                    const results = data.results || [];
+                    
+                    document.getElementById('searchResults').innerHTML = results.map(result => `
+                        <button class="search-result" onclick='addLocation(${JSON.stringify(result)})'>
+                            <div class="result-name">${result.name}</div>
+                            <div class="result-country">${result.country}</div>
+                        </button>
+                    `).join('');
+                } catch (error) {
+                    console.error('Search error:', error);
+                }
+            }, 300);
+        });
+
+        async function addLocation(result) {
+            const newLocation = {
+                name: result.name,
+                lat: result.latitude,
+                lon: result.longitude,
+                country: result.country
+            };
+            
+            if (!locations.find(loc => loc.name === newLocation.name)) {
+                locations.push(newLocation);
+                localStorage.setItem('weatherLocations', JSON.stringify(locations));
+                await fetchAllWeather();
+            }
+            closeSearch();
+            render();
+        }
+
+        // Запуск
+        init();
+    </script>
+</body>
+</html>
