@@ -14,7 +14,6 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             overflow-x: hidden;
-            transition: background 1s ease;
         }
 
         .app {
@@ -23,6 +22,24 @@
             flex-direction: column;
             color: white;
             position: relative;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: background-image 1s ease;
+        }
+
+        /* Overlay для читаемости текста */
+        .app::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 0;
+        }
+
+        .app > * {
+            position: relative;
+            z-index: 1;
         }
 
         /* Поиск */
@@ -143,23 +160,27 @@
             font-size: 36px;
             font-weight: 300;
             margin-bottom: 8px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .temperature {
             font-size: 96px;
             font-weight: 100;
             margin: 32px 0;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
         }
 
         .description {
             font-size: 24px;
             margin-bottom: 32px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .weather-icon {
             width: 80px;
             height: 80px;
             margin: 20px 0;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5));
         }
 
         .weather-icon svg {
@@ -173,6 +194,7 @@
         .minmax {
             font-size: 20px;
             margin-top: 48px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         /* Детали */
@@ -313,6 +335,7 @@
             text-align: center;
             font-size: 24px;
             padding: 40px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .add-city-btn {
@@ -353,6 +376,7 @@
         .search-icon svg {
             stroke: #999;
             stroke-width: 2;
+            fill: none;
         }
     </style>
 </head>
@@ -363,16 +387,17 @@
             <div class="search-box">
                 <div class="search-input-wrapper">
                     <div class="search-icon">
-                        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     </div>
                     <input 
                         type="text" 
                         class="search-input" 
                         id="searchInput"
                         placeholder="Поиск города..."
+                        autocomplete="off"
                     >
-                    <button class="close-btn" onclick="closeSearch()">
-                        <svg viewBox="0 0 24 24" fill="none"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    <button class="close-btn" id="closeSearchBtn">
+                        <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                     </button>
                 </div>
                 <div class="search-results" id="searchResults"></div>
@@ -381,7 +406,7 @@
 
         <!-- Главный экран -->
         <div class="header">
-            <button class="btn" onclick="openSearch()">
+            <button class="btn" id="searchBtn">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             </button>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
@@ -406,13 +431,43 @@
         let weatherData = {};
         let searchTimeout = null;
 
+        // Карта фонов по погоде
+        // Здесь можно указать ссылки на ваши изображения
+        const backgroundImages = {
+            clearDay: 'https://images.unsplash.com/photo-1601297183305-6df142704ea2?w=1920&q=80', // Ясное небо день
+            clearNight: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920&q=80', // Звездное небо
+            cloudy: 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920&q=80', // Облака
+            rain: 'https://images.unsplash.com/photo-1428908728789-d2de25dbd4e2?w=1920&q=80', // Дождь
+            snow: 'https://images.unsplash.com/photo-1478265409131-1f65c88f965c?w=1920&q=80', // Снег
+            storm: 'https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?w=1920&q=80' // Гроза
+        };
+
+        // Автоопределение города по IP
+        async function detectLocation() {
+            try {
+                const response = await fetch('https://ipapi.co/json/');
+                const data = await response.json();
+                return {
+                    name: data.city,
+                    lat: data.latitude,
+                    lon: data.longitude,
+                    country: data.country_name
+                };
+            } catch (error) {
+                console.error('Ошибка определения локации:', error);
+                return { name: 'Riga', lat: 56.9496, lon: 24.1052 };
+            }
+        }
+
         // Инициализация
         async function init() {
             const saved = localStorage.getItem('weatherLocations');
             if (saved) {
                 locations = JSON.parse(saved);
             } else {
-                locations = [{ name: 'Riga', lat: 56.9496, lon: 24.1052 }];
+                // Автоопределение города
+                const detectedLocation = await detectLocation();
+                locations = [detectedLocation];
             }
             await fetchAllWeather();
             render();
@@ -434,30 +489,24 @@
             }
         }
 
-        // Определение фона
-        function getBackground(weatherCode, isDay) {
+        // Определение фонового изображения
+        function getBackgroundImage(weatherCode, isDay) {
             if (weatherCode === 0 || weatherCode === 1) {
-                return isDay 
-                    ? 'linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%)'
-                    : 'linear-gradient(to bottom, #0B1026 0%, #2E3A59 100%)';
+                return isDay ? backgroundImages.clearDay : backgroundImages.clearNight;
             }
             if (weatherCode === 2 || weatherCode === 3) {
-                return isDay
-                    ? 'linear-gradient(to bottom, #697C9B 0%, #B8C5D6 100%)'
-                    : 'linear-gradient(to bottom, #1a1a2e 0%, #3a3a52 100%)';
+                return backgroundImages.cloudy;
             }
             if (weatherCode >= 51 && weatherCode <= 67) {
-                return 'linear-gradient(to bottom, #4A5568 0%, #718096 100%)';
+                return backgroundImages.rain;
             }
             if (weatherCode >= 71 && weatherCode <= 77) {
-                return 'linear-gradient(to bottom, #E2E8F0 0%, #CBD5E0 100%)';
+                return backgroundImages.snow;
             }
             if (weatherCode >= 80 && weatherCode <= 99) {
-                return 'linear-gradient(to bottom, #2D3748 0%, #4A5568 100%)';
+                return backgroundImages.storm;
             }
-            return isDay 
-                ? 'linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%)'
-                : 'linear-gradient(to bottom, #0B1026 0%, #2E3A59 100%)';
+            return isDay ? backgroundImages.clearDay : backgroundImages.clearNight;
         }
 
         // Иконка погоды
@@ -500,13 +549,15 @@
             const isDay = hour >= 6 && hour < 20;
             const weatherCode = currentWeather?.current?.weather_code || 0;
 
-            // Фон
-            document.getElementById('app').style.background = getBackground(weatherCode, isDay);
+            // Фоновое изображение
+            const app = document.getElementById('app');
+            app.style.backgroundImage = `url('${getBackgroundImage(weatherCode, isDay)}')`;
 
             // Контент
             const content = document.getElementById('content');
             if (!currentWeather) {
-                content.innerHTML = '<button class="add-city-btn" onclick="openSearch()">Добавить город</button>';
+                content.innerHTML = '<button class="add-city-btn" id="addCityBtn">Добавить город</button>';
+                document.getElementById('addCityBtn').addEventListener('click', openSearch);
             } else {
                 content.innerHTML = `
                     <h1 class="location-name">${currentLocation.name}</h1>
@@ -546,8 +597,15 @@
             const indicators = document.getElementById('indicators');
             if (locations.length > 1) {
                 indicators.innerHTML = locations.map((_, i) => 
-                    `<button class="indicator ${i === currentIndex ? 'active' : ''}" onclick="switchLocation(${i})"></button>`
+                    `<button class="indicator ${i === currentIndex ? 'active' : ''}" data-index="${i}"></button>`
                 ).join('');
+                
+                // Добавляем обработчики
+                indicators.querySelectorAll('.indicator').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        switchLocation(parseInt(this.dataset.index));
+                    });
+                });
             } else {
                 indicators.innerHTML = '';
             }
@@ -556,13 +614,27 @@
             const list = document.getElementById('locationsList');
             list.innerHTML = locations.map((loc, i) => `
                 <div class="location-item">
-                    <button class="location-info" onclick="switchLocation(${i})">
+                    <button class="location-info" data-index="${i}">
                         <span>${loc.name}</span>
                         ${weatherData[loc.name] ? `<span class="location-temp">${Math.round(weatherData[loc.name].current.temperature_2m)}°</span>` : ''}
                     </button>
-                    ${locations.length > 1 ? `<button class="remove-btn" onclick="removeLocation(${i})"><svg viewBox="0 0 24 24" fill="none"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ''}
+                    ${locations.length > 1 ? `<button class="remove-btn" data-index="${i}"><svg viewBox="0 0 24 24" fill="none"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ''}
                 </div>
             `).join('');
+
+            // Добавляем обработчики для списка
+            list.querySelectorAll('.location-info').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    switchLocation(parseInt(this.dataset.index));
+                });
+            });
+
+            list.querySelectorAll('.remove-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    removeLocation(parseInt(this.dataset.index));
+                });
+            });
         }
 
         // Переключение локации
@@ -594,34 +666,38 @@
             document.getElementById('searchResults').innerHTML = '';
         }
 
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const query = e.target.value;
-            if (searchTimeout) clearTimeout(searchTimeout);
-            
+        async function handleSearch(query) {
             if (query.length < 2) {
                 document.getElementById('searchResults').innerHTML = '';
                 return;
             }
 
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(
-                        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=ru&format=json`
-                    );
-                    const data = await response.json();
-                    const results = data.results || [];
-                    
-                    document.getElementById('searchResults').innerHTML = results.map(result => `
-                        <button class="search-result" onclick='addLocation(${JSON.stringify(result)})'>
-                            <div class="result-name">${result.name}</div>
-                            <div class="result-country">${result.country}</div>
-                        </button>
-                    `).join('');
-                } catch (error) {
-                    console.error('Search error:', error);
-                }
-            }, 300);
-        });
+            try {
+                const response = await fetch(
+                    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=ru&format=json`
+                );
+                const data = await response.json();
+                const results = data.results || [];
+                
+                const resultsContainer = document.getElementById('searchResults');
+                resultsContainer.innerHTML = results.map((result, index) => `
+                    <button class="search-result" data-index="${index}">
+                        <div class="result-name">${result.name}</div>
+                        <div class="result-country">${result.country}</div>
+                    </button>
+                `).join('');
+
+                // Добавляем обработчики для результатов
+                resultsContainer.querySelectorAll('.search-result').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const result = results[parseInt(this.dataset.index)];
+                        addLocation(result);
+                    });
+                });
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }
 
         async function addLocation(result) {
             const newLocation = {
@@ -639,6 +715,27 @@
             closeSearch();
             render();
         }
+
+        // Обработчики событий
+        document.getElementById('searchBtn').addEventListener('click', openSearch);
+        document.getElementById('closeSearchBtn').addEventListener('click', closeSearch);
+        
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const query = e.target.value;
+            
+            if (searchTimeout) clearTimeout(searchTimeout);
+            
+            searchTimeout = setTimeout(() => {
+                handleSearch(query);
+            }, 300);
+        });
+
+        // Закрытие поиска по клику вне окна
+        document.getElementById('searchOverlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSearch();
+            }
+        });
 
         // Запуск
         init();
